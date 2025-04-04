@@ -8,12 +8,6 @@ const configuration = new Configuration({
 });
 const openai = new OpenAIApi(configuration);
 
-/**
- * getChatResponse:
- *  - Accepts a messages array (system prompt + conversation history).
- *  - Logs the raw prompt.
- *  - Sends the prompt to the AI and returns the trimmed response.
- */
 export async function getChatResponse(messages) {
   const rawPrompt = JSON.stringify(messages, null, 2);
   logger.debug(`Constructed raw prompt:\n${rawPrompt}`);
@@ -21,10 +15,10 @@ export async function getChatResponse(messages) {
   
   try {
     const response = await openai.createChatCompletion({
-      model: 'mistralai/Mistral-Nemo-Instruct-2407', // your chosen model
+      model: 'mistralai/Mistral-Nemo-Instruct-2407', 
       messages,
-      max_tokens: 150,
-      temperature: 0.7,
+      max_tokens: 4096,
+      temperature: 1.32,
     });
     
     const apiResponse = JSON.stringify(response.data, null, 2);

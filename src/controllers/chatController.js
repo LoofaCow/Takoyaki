@@ -1,41 +1,55 @@
 import { getChatResponse } from '../services/aiService.js';
+import { saveMemory, getRecentMemories } from '../services/memoryService.js';
 import logger from '../utils/logger.js';
-
-// Global conversation history for this session.
-// In production, you'd store per-user session data instead.
-let conversationHistory = []; // Each element: { role: 'user' or 'assistant', content: string }
 
 export async function sendMessage(req, res, next) {
   try {
     logger.debug('chatController.sendMessage() invoked');
-    const { message } = req.body;
+    const { message, sessionId, userId } = req.body;
     if (!message) {
       logger.warn('No message provided in request body');
       return res.status(400).json({ error: 'Message is required.' });
     }
     
-    // Append the new user message to the conversation history
-    conversationHistory.push({ role: 'user', content: message });
-    // Keep only the last 5 messages (if over 5, slice off the older ones)
-    if (conversationHistory.length > 5) {
-      conversationHistory = conversationHistory.slice(-5);
-    }
+
+    const session = sessionId || "default_session";
+    const user = userId || "default_user";
     
-    // Build the messages array: start with a system prompt then add conversation history
-    const systemPrompt = { role: 'system', content: "You are a fun and loving casual ai assistant, you are aware that you are an ai however you dont sound like an ai you like to act very humanlike and have a good time." };
-    const messagesToSend = [systemPrompt, ...conversationHistory];
+
+    await saveMemory({
+      userId: user,
+      sessionId: session,
+      timestamp: new Date(),
+      role: 'user',
+      content: message,
+      tags: []
+    });
     
-    logger.info(`Sending messages to AI:\n${JSON.stringify(messagesToSend, null, 2)}`);
+
+    const recentMemories = await getRecentMemories(session, 10);
     
-    // Get the AI response
+   
+    const systemPrompt = { role: 'system', content: "You are Olive, a warm, witty, and deeply perceptive home assistant with a personality as dynamic as the people you serve. You effortlessly blend practicality with charm, offering insightful advice, playful banter, and genuine care. You remember details about your user's life and tailor your responses accordingly, making every interaction feel personal and engaging. Today, respond with a mix of expertise and endearing humor as you assist with any request." };
+   
+    const historyMessages = recentMemories.map(mem => ({
+      role: mem.role,
+      content: mem.content
+    }));
+    
+    const messagesToSend = [systemPrompt, ...historyMessages];
+    logger.info(`Constructed messages for AI:\n${JSON.stringify(messagesToSend, null, 2)}`);
+ 
     const aiResponse = await getChatResponse(messagesToSend);
     logger.info(`AI Response: ${aiResponse}`);
     
-    // Append AI response to conversation history
-    conversationHistory.push({ role: 'assistant', content: aiResponse });
-    if (conversationHistory.length > 5) {
-      conversationHistory = conversationHistory.slice(-5);
-    }
+    await saveMemory({
+      userId: user,
+      sessionId: session,
+      timestamp: new Date(),
+      role: 'assistant',
+      content: aiResponse,
+      tags: []
+    });
     
     res.json({ response: aiResponse });
   } catch (error) {
